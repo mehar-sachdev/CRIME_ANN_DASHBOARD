@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from difflib import get_close_matches
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -11,8 +12,9 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 from model import CrimeANN
 
-st.set_page_config(page_title="Crime ANN Dashboard", layout="wide")
-st.title("🚀 Dynamic ANN Hyperparameter Tuning Dashboard")
+st.set_page_config(page_title="Crime Intelligence Dashboard", layout="wide")
+
+st.title("🚔 Crime Intelligence & ANN Prediction System")
 
 # ===============================
 # LOAD DATA
@@ -32,10 +34,54 @@ def load_data():
     df.columns = df.columns.str.replace("-", "_")
 
     df = df.drop(columns=["DISTRICT"], errors="ignore")
-
     return df
 
 df = load_data()
+
+# ===============================
+# 🔎 CRIME SEARCH SECTION
+# ===============================
+
+st.header("🔎 Crime Search & Legal Insight")
+
+keyword = st.text_input("Enter crime keyword (e.g., theft, murder, rape)")
+
+punishments = {
+    "MURDER": "Section 302 IPC – Punishable with death or life imprisonment.",
+    "RAPE": "Section 376 IPC – Minimum 10 years imprisonment.",
+    "THEFT": "Section 378 IPC – Up to 3 years imprisonment.",
+    "ROBBERY": "Section 392 IPC – Up to 10 years imprisonment.",
+    "RIOTS": "Section 147 IPC – Up to 2 years imprisonment.",
+    "CHEATING": "Section 420 IPC – Up to 7 years imprisonment.",
+    "DOWRY_DEATHS": "Section 304B IPC – Minimum 7 years imprisonment."
+}
+
+if keyword:
+    keyword_upper = keyword.upper()
+
+    # Fuzzy matching
+    matches = get_close_matches(keyword_upper, df.columns, n=5, cutoff=0.4)
+
+    if matches:
+        st.success(f"Matching crimes found: {matches}")
+
+        # Show trend
+        if "YEAR" in df.columns:
+            trend = df.groupby("YEAR")[matches].sum()
+            st.line_chart(trend)
+
+        # Show punishment info
+        for crime in matches:
+            if crime in punishments:
+                st.info(f"⚖ {crime}: {punishments[crime]}")
+    else:
+        st.warning("No matching crime found.")
+
+# ===============================
+# 🤖 ANN PREDICTION SECTION
+# ===============================
+
+st.header("🤖 ANN Crime Prediction Model")
 
 features = [
     'MURDER',
@@ -54,13 +100,10 @@ df_model = df[features + [target]].copy()
 X = df_model[features]
 y = df_model[target]
 
-# ===============================
-# SIDEBAR CONTROLS
-# ===============================
-
+# Sidebar controls
 st.sidebar.header("⚙ Model Configuration")
 
-hidden_layers = st.sidebar.slider("Number of Hidden Layers", 1, 5, 2)
+hidden_layers = st.sidebar.slider("Hidden Layers", 1, 5, 2)
 neurons = st.sidebar.slider("Neurons per Layer", 8, 256, 64, 8)
 dropout_rate = st.sidebar.slider("Dropout Rate", 0.0, 0.5, 0.3, 0.05)
 
@@ -71,34 +114,21 @@ epochs = st.sidebar.slider("Epochs", 20, 300, 100, 10)
 
 train_button = st.sidebar.button("🚀 Train Model")
 
-# ===============================
-# TRAIN FUNCTION
-# ===============================
-
 def train_model(model, X_train, y_train, lr, epochs):
-
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
     losses = []
 
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
-
         outputs = model(X_train)
         loss = criterion(outputs, y_train)
-
         loss.backward()
         optimizer.step()
-
         losses.append(loss.item())
 
     return model, losses
-
-# ===============================
-# RUN MODEL
-# ===============================
 
 if train_button:
 
