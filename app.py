@@ -34,6 +34,7 @@ def load_data():
     df.columns = df.columns.str.replace("-", "_")
 
     df = df.drop(columns=["DISTRICT"], errors="ignore")
+
     return df
 
 df = load_data()
@@ -57,20 +58,31 @@ punishments = {
 }
 
 if keyword:
+
     keyword_upper = keyword.upper()
 
-    # Fuzzy matching
-    matches = get_close_matches(keyword_upper, df.columns, n=5, cutoff=0.4)
+    # Only consider numeric crime columns
+    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Remove YEAR and TOTAL from search pool
+    excluded_cols = ["YEAR", "TOTAL_IPC_CRIMES"]
+    search_columns = [col for col in numeric_columns if col not in excluded_cols]
+
+    matches = get_close_matches(keyword_upper, search_columns, n=5, cutoff=0.4)
 
     if matches:
         st.success(f"Matching crimes found: {matches}")
 
-        # Show trend
+        # Safe trend plotting
         if "YEAR" in df.columns:
             trend = df.groupby("YEAR")[matches].sum()
-            st.line_chart(trend)
 
-        # Show punishment info
+            if not trend.empty:
+                st.line_chart(trend)
+            else:
+                st.warning("No trend data available.")
+
+        # Punishment info
         for crime in matches:
             if crime in punishments:
                 st.info(f"⚖ {crime}: {punishments[crime]}")
@@ -100,7 +112,7 @@ df_model = df[features + [target]].copy()
 X = df_model[features]
 y = df_model[target]
 
-# Sidebar controls
+# Sidebar Controls
 st.sidebar.header("⚙ Model Configuration")
 
 hidden_layers = st.sidebar.slider("Hidden Layers", 1, 5, 2)
